@@ -1,7 +1,5 @@
 # shadowsocksrr-rust
 
-# shadowsocksrr-rust
-
 Rust 重写的 ShadowsocksR 现代（误）服务端，复刻以下协议逻辑：
 
 - obfs: `tls1.2_ticket_auth`
