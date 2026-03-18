@@ -1,0 +1,28 @@
+[package]
+name = "shadowsocksrr-rust"
+version = "1.0.0"
+edition = "2024"
+
+[dependencies]
+aes = "0.8.4"
+anyhow = "1.0.102"
+base64 = "0.22.1"
+chacha20 = { version = "0.10.0", features = ["legacy"] }
+clap = { version = "4.6.0", features = ["derive"] }
+hex = "0.4.3"
+hmac = "0.12.1"
+libc = "0.2.183"
+md-5 = "0.10.6"
+parking_lot = "0.12.5"
+rand = "0.10.0"
+rc4 = "0.1.0"
+serde = { version = "1.0.228", features = ["derive"] }
+sha1 = "0.10.6"
+thiserror = "2.0.18"
+tokio = { version = "1.50.0", features = ["full"] }
+toml = "1.0.6"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["fmt", "env-filter"] }
+
+[profile.release]
+lto = true

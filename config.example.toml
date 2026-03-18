@@ -1,0 +1,59 @@
+[logging]
+# trace | debug | info | warn | error
+level = "info"
+
+[server]
+# TCP listen address
+listen = "0.0.0.0:8388"
+# Optional redirect rules:
+# redirect = [":8443#127.0.0.1:443", ":698#127.0.0.1:443"]
+# Handshake timeout in seconds
+# handshake_timeout_secs = 10
+# TCP connection limit
+# max_tcp_connections = 65536
+# This simplified server only supports "none"
+cipher = "none"
+# TCP/UDP read buffer size in bytes
+# read_buffer_size = 65536
+
+# Enable UDP relay
+udp_enabled = true
+# Optional separate UDP listen address
+udp_listen = "0.0.0.0:8388"
+# UDP association timeout in seconds
+# udp_timeout_secs = 180
+# UDP association limit
+# udp_max_associations = 65536
+# Replay cache size for obfs
+# replay_max_entries = 1048576
+
+[obfs]
+# tls1.2_ticket_auth | tls1.2_ticket_fastauth
+method = "tls1.2_ticket_auth"
+# Optional obfs parameter
+# obfs_param = ""
+# Optional host / SNI-style value
+# host = ""
+
+[protocol]
+# auth_chain_d / auth_chain_e / auth_chain_f /
+# auth_akarin_rand / auth_akarin_spec_a
+method = "auth_akarin_spec_a"
+password = "replace-with-your-shared-password"
+
+# protocol_param examples:
+# auth_akarin_spec_a/auth_akarin_rand:
+#   "64"
+#   "64#time_dif=300"
+#
+# auth_chain_f:
+#   "64#86400"
+protocol_param = "64"
+
+# 0 means auto/default 1460, clamped to 500..1500
+# tcp_mss = 0
+# legacy compatibility overhead field
+# overhead = 4
+
+#[protocol.users]
+# "1001" = "user-key-1"
