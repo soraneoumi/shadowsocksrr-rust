@@ -1,0 +1,85 @@
+name: Cross Build
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform.name }}
+    runs-on: ${{ matrix.platform.runs_on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: linux-x86_64
+            runs_on: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            bin: shadowsocksrr-rust
+            archive: tar.gz
+          - name: linux-aarch64
+            runs_on: ubuntu-24.04
+            target: aarch64-unknown-linux-musl
+            bin: shadowsocksrr-rust
+            archive: tar.gz
+          - name: windows-x86_64
+            runs_on: windows-latest
+            target: x86_64-pc-windows-msvc
+            bin: shadowsocksrr-rust.exe
+            archive: zip
+          - name: macos-x86_64
+            runs_on: macos-latest
+            target: x86_64-apple-darwin
+            bin: shadowsocksrr-rust
+            archive: tar.gz
+          - name: macos-aarch64
+            runs_on: macos-latest
+            target: aarch64-apple-darwin
+            bin: shadowsocksrr-rust
+            archive: tar.gz
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build binary
+        uses: houseabsolute/actions-rust-cross@v1
+        with:
+          command: build
+          target: ${{ matrix.platform.target }}
+          args: "--locked --release"
+          strip: true
+
+      - name: Package artifact (Unix)
+        if: matrix.platform.archive == 'tar.gz'
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp "target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin }}" dist/
+          cp README.md config.example.toml dist/
+          tar -czf "${{ matrix.platform.name }}.tar.gz" -C dist .
+
+      - name: Package artifact (Windows)
+        if: matrix.platform.archive == 'zip'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item "target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin }}" dist/
+          Copy-Item "README.md" dist/
+          Copy-Item "config.example.toml" dist/
+          Compress-Archive -Path dist\* -DestinationPath "${{ matrix.platform.name }}.zip" -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.platform.name }}
+          path: ${{ matrix.platform.name }}.${{ matrix.platform.archive }}
+          if-no-files-found: error
