@@ -21,10 +21,8 @@ use tokio::sync::Semaphore;
 use tokio::time::{Duration, Instant as TokioInstant, timeout_at};
 use tracing::{Instrument, debug, error, info, info_span, warn};
 
-// Fixed first-packet camouflage header (TLS record prefix) per paper guidance.
 const FIXED_IV_HEADER: &[u8] = b"\x16\x03\x03";
 const REQUIRE_CLIENT_IV_HEADER: bool = false;
-const PREPEND_SERVER_IV_HEADER: bool = true;
 const TCP_DNS_CACHE_TTL: Duration = Duration::from_secs(30);
 const TCP_DNS_CACHE_MAX_ENTRIES: usize = 4096;
 static NEXT_CONN_ID: AtomicU64 = AtomicU64::new(1);
@@ -117,20 +115,16 @@ type TcpDnsCache = Arc<Mutex<ResolvedTcpTargetCache>>;
 struct IvHeaderMitigator {
     iv_header: Vec<u8>,
     require_client_header: bool,
-    prepend_server_header: bool,
     inbound_done: bool,
-    outbound_done: bool,
     inbound_buf: Vec<u8>,
 }
 
 impl IvHeaderMitigator {
-    fn new(iv_header: Vec<u8>, require_client_header: bool, prepend_server_header: bool) -> Self {
+    fn new(iv_header: Vec<u8>, require_client_header: bool) -> Self {
         Self {
             iv_header,
             require_client_header,
-            prepend_server_header,
             inbound_done: false,
-            outbound_done: false,
             inbound_buf: Vec::new(),
         }
     }
@@ -164,17 +158,6 @@ impl IvHeaderMitigator {
 
     fn process_outbound_into(&mut self, data: &[u8], out: &mut Vec<u8>) {
         out.clear();
-        if self.outbound_done
-            || self.iv_header.is_empty()
-            || !self.prepend_server_header
-            || data.is_empty()
-        {
-            out.extend_from_slice(data);
-            return;
-        }
-        self.outbound_done = true;
-        out.reserve(self.iv_header.len() + data.len());
-        out.extend_from_slice(&self.iv_header);
         out.extend_from_slice(&data);
     }
 }
@@ -333,11 +316,8 @@ async fn handle_connection(
     tcp_dns_cache: TcpDnsCache,
 ) -> Result<()> {
     let (mut obfs, mut protocol) = build_codecs(&config, &peer, tls_shared, shared_registry)?;
-    let mut iv_mitigator = IvHeaderMitigator::new(
-        FIXED_IV_HEADER.to_vec(),
-        REQUIRE_CLIENT_IV_HEADER,
-        PREPEND_SERVER_IV_HEADER,
-    );
+    let mut iv_mitigator =
+        IvHeaderMitigator::new(FIXED_IV_HEADER.to_vec(), REQUIRE_CLIENT_IV_HEADER);
     let redirect_target = pick_redirect_target(&config);
     if let Some(target) = redirect_target.as_deref() {
         info!(redirect = %target, "redirect fallback is enabled for this listen port");
@@ -1067,7 +1047,7 @@ mod tests {
 
     #[test]
     fn iv_header_mitigator_strips_optional_inbound_header() {
-        let mut mitigator = IvHeaderMitigator::new(b"\x16\x03\x03".to_vec(), false, true);
+        let mut mitigator = IvHeaderMitigator::new(b"\x16\x03\x03".to_vec(), false);
         let mut out = Vec::new();
 
         assert!(
@@ -1085,12 +1065,12 @@ mod tests {
     }
 
     #[test]
-    fn iv_header_mitigator_prepends_header_once() {
-        let mut mitigator = IvHeaderMitigator::new(b"\x16\x03\x03".to_vec(), false, true);
+    fn iv_header_mitigator_leaves_outbound_untouched() {
+        let mut mitigator = IvHeaderMitigator::new(b"\x16\x03\x03".to_vec(), false);
         let mut out = Vec::new();
 
         mitigator.process_outbound_into(b"first", &mut out);
-        assert_eq!(out, b"\x16\x03\x03first");
+        assert_eq!(out, b"first");
 
         mitigator.process_outbound_into(b"second", &mut out);
         assert_eq!(out, b"second");
@@ -1104,11 +1084,7 @@ mod tests {
 
     #[test]
     fn build_codecs_accepts_supported_protocol_stacks() {
-        let variants = [
-            "auth_chain_d",
-            "auth_akarin_rand",
-            "auth_akarin_spec_a",
-        ];
+        let variants = ["auth_chain_d", "auth_akarin_rand", "auth_akarin_spec_a"];
 
         for method in variants {
             let mut config = base_config();
